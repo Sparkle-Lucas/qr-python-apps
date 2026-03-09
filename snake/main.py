@@ -4,8 +4,8 @@ from js import document, localStorage
 from pyscript import ffi
 
 CELL_COUNT = 16
-BASE_SPEED = 7
-MAX_SPEED = 14
+BASE_SPEED = 5
+MAX_SPEED = 11
 
 canvas = document.getElementById("board")
 ctx = canvas.getContext("2d")
