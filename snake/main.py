@@ -1,6 +1,6 @@
 import asyncio
 import random
-from js import document, window, localStorage
+from js import document, localStorage
 from pyscript import ffi
 
 CELL_COUNT = 16
@@ -35,7 +35,6 @@ score = 0
 speed = BASE_SPEED
 start_touch = None
 
-
 _CALLBACKS = []
 
 
@@ -43,7 +42,6 @@ def bind(element, event_name: str, handler):
     proxy = ffi.create_proxy(handler)
     _CALLBACKS.append(proxy)
     element.addEventListener(event_name, proxy)
-
 
 
 def set_status(text: str):
@@ -267,21 +265,12 @@ def on_touch_end(event):
     global start_touch
     if start_touch is None or event.changedTouches.length == 0:
         return
+
     touch = event.changedTouches.item(0)
     end_touch = (touch.clientX, touch.clientY)
     dx = end_touch[0] - start_touch[0]
     dy = end_touch[1] - start_touch[1]
     start_touch = None
-
-
-_CALLBACKS = []
-
-
-def bind(element, event_name: str, handler):
-    proxy = ffi.create_proxy(handler)
-    _CALLBACKS.append(proxy)
-    element.addEventListener(event_name, proxy)
-
 
     if abs(dx) < 18 and abs(dy) < 18:
         if paused and running:
