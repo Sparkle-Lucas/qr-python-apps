@@ -76,7 +76,7 @@ def spawn_food():
 
 def update_speed():
     global speed
-    speed = min(MAX_SPEED, BASE_SPEED + score // 3)
+    speed = min(MAX_SPEED, BASE_SPEED + score // 4)
 
 
 def set_direction(dx: int, dy: int):
