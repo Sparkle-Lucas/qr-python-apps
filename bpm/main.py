@@ -1,7 +1,7 @@
 import asyncio
 import random
 from js import document, window
-from pyscript import ffi
+from pyscript.ffi import create_proxy
 
 TRACKS = ["kick", "snare", "hat"]
 STEPS = 16
@@ -14,21 +14,14 @@ bpm_value_el = document.getElementById("bpm-value")
 swing_value_el = document.getElementById("swing-value")
 preset_el = document.getElementById("preset")
 
+audio_debug_el = document.getElementById("audio-debug")
+
 pattern = {track: [0] * STEPS for track in TRACKS}
 pad_elements = {track: [] for track in TRACKS}
 running = False
 loop_task = None
 current_step = -1
-
-
-_CALLBACKS = []
-
-
-def bind(element, event_name: str, handler):
-    proxy = ffi.create_proxy(handler)
-    _CALLBACKS.append(proxy)
-    element.addEventListener(event_name, proxy)
-
+_event_proxies = []
 
 PRESETS = {
     "starter": {
@@ -54,8 +47,19 @@ PRESETS = {
 }
 
 
+def bind_event(element, event_name, func):
+    proxy = create_proxy(func)
+    _event_proxies.append(proxy)
+    element.addEventListener(event_name, proxy)
+
+
 def set_status(text: str):
     status_el.textContent = text
+
+
+def set_audio_debug(text: str):
+    if audio_debug_el:
+        audio_debug_el.textContent = text
 
 
 def update_value_labels(event=None):
@@ -87,7 +91,7 @@ def build_grid():
             button.className = f"pad track-{track}"
             button.dataset.track = track
             button.dataset.step = str(step)
-            bind(button, "click", make_toggle_handler(track, step))
+            bind_event(button, "click", make_toggle_handler(track, step))
             pad_elements[track].append(button)
             seq_grid.appendChild(button)
 
@@ -163,25 +167,16 @@ def play_step(step: int):
 
 
 def stop(event=None):
-    global running, current_step
+    global running, current_step, loop_task
     running = False
     current_step = -1
-
-
-_CALLBACKS = []
-
-
-def bind(element, event_name: str, handler):
-    proxy = ffi.create_proxy(handler)
-    _CALLBACKS.append(proxy)
-    element.addEventListener(event_name, proxy)
-
+    loop_task = None
     refresh_pads()
     set_status("Stopped.")
 
 
 async def sequencer_loop():
-    global current_step, running
+    global current_step, running, loop_task
     step = 0
     while running:
         current_step = step
@@ -193,13 +188,18 @@ async def sequencer_loop():
         wait = base * (1 + swing) if step % 2 else base * (1 - swing)
         await asyncio.sleep(max(0.03, wait))
         step = (step + 1) % STEPS
+    loop_task = None
 
 
 def start(event=None):
     global running, loop_task
     if running:
         return
-    window.audioHelper.ensure()
+    try:
+        state = window.audioHelper.ensureUnlockedState()
+        set_audio_debug(f"Audio context: {state}")
+    except Exception as exc:
+        set_audio_debug(f"Audio unlock check failed: {exc}")
     running = True
     set_status("Running. Tap pads live while it plays.")
     loop_task = asyncio.create_task(sequencer_loop())
@@ -209,16 +209,30 @@ def on_load_preset(event=None):
     load_preset(preset_el.value)
 
 
+def test_sound(event=None):
+    try:
+        state = window.audioHelper.ensureUnlockedState()
+        window.audioHelper.kick()
+        window.audioHelper.hat()
+        set_audio_debug(f"Test sound played. Audio context: {state}")
+        set_status("Triggered a test sound.")
+    except Exception as exc:
+        set_audio_debug(f"Test sound failed: {exc}")
+        set_status("Test sound failed.")
+
+
 build_grid()
 load_preset("starter")
 update_value_labels()
+set_audio_debug("Audio not unlocked yet.")
 
-bind(bpm_el, "input", update_value_labels)
-bind(swing_el, "input", update_value_labels)
-bind(document.getElementById("load-preset"), "click", on_load_preset)
-bind(document.getElementById("clear"), "click", clear_pattern)
-bind(document.getElementById("randomize"), "click", randomize_pattern)
-bind(document.getElementById("fill-hats"), "click", fill_hats)
-bind(document.getElementById("drop-kick"), "click", drop_kick)
-bind(document.getElementById("start"), "click", start)
-bind(document.getElementById("stop"), "click", stop)
+bind_event(bpm_el, "input", update_value_labels)
+bind_event(swing_el, "input", update_value_labels)
+bind_event(document.getElementById("load-preset"), "click", on_load_preset)
+bind_event(document.getElementById("clear"), "click", clear_pattern)
+bind_event(document.getElementById("randomize"), "click", randomize_pattern)
+bind_event(document.getElementById("fill-hats"), "click", fill_hats)
+bind_event(document.getElementById("drop-kick"), "click", drop_kick)
+bind_event(document.getElementById("start"), "click", start)
+bind_event(document.getElementById("stop"), "click", stop)
+bind_event(document.getElementById("test-sound"), "click", test_sound)
