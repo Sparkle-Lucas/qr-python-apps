@@ -161,25 +161,51 @@
       <img id="source-image" alt="hidden source" style="display:none;" />
     </div>
 
-    <script>
-      window.uploadedMemeData = null;
-      const uploader = document.getElementById('uploader');
-      uploader.addEventListener('change', () => {
-        const file = uploader.files && uploader.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => { window.uploadedMemeData = reader.result; };
-        reader.readAsDataURL(file);
-      });
+<script>
+  window.uploadedMemeData = null;
 
-      window.downloadCanvasAsPng = (canvasId, filename) => {
-        const canvas = document.getElementById(canvasId);
-        const link = document.createElement('a');
-        link.href = canvas.toDataURL('image/png');
-        link.download = filename;
-        link.click();
-      };
-    </script>
+  const uploader = document.getElementById('uploader');
+  const templateSelect = document.getElementById('template');
+  const statusEl = document.getElementById('status');
+
+  uploader.addEventListener('change', () => {
+    const file = uploader.files && uploader.files[0];
+    if (!file) return;
+
+    if (statusEl) {
+      statusEl.textContent = 'Reading uploaded image...';
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      window.uploadedMemeData = reader.result;
+
+      
+      templateSelect.value = 'upload';
+
+      if (statusEl) {
+        statusEl.textContent = 'Uploaded image ready. Tap Generate.';
+      }
+    };
+
+    reader.onerror = () => {
+      if (statusEl) {
+        statusEl.textContent = 'Failed to read the uploaded image.';
+      }
+    };
+
+    reader.readAsDataURL(file);
+  });
+
+  window.downloadCanvasAsPng = (canvasId, filename) => {
+    const canvas = document.getElementById(canvasId);
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = filename;
+    link.click();
+  };
+</script>
 
     <script type="py" src="./main.py" config="./pyscript.json"></script>
   </div>
