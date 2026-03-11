@@ -180,6 +180,7 @@
             <button class="secondary" id="stop">Stop</button>
             <button id="fill-hats">Fill hats</button>
             <button id="drop-kick">Drop kick</button>
+            <button id="test-sound">Test sound</button>
           </div>
         </div>
       </div>
@@ -189,7 +190,8 @@
       </div>
 
       <div id="status">Ready. Tap pads, then hit Start.</div>
-      <div class="hint">Audio on mobile starts only after a user tap. That is a browser rule, not a bug.</div>
+      <div id="audio-debug" class="hint">Audio not unlocked yet.</div>
+      <div class="hint">If a phone shows the sequencer running but you hear nothing, test these first: turn off Silent mode on iPhone, then tap Test sound and Start. Some mobile browsers only unlock Web Audio after a direct touch gesture.</div>
     </div>
 
     <script>
@@ -197,14 +199,14 @@
         let ctx = null;
         let noiseBuffer = null;
 
-        function ensure() {
+        async function ensure() {
           if (!ctx) {
             ctx = new (window.AudioContext || window.webkitAudioContext)();
             noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
             const output = noiseBuffer.getChannelData(0);
             for (let i = 0; i < output.length; i++) output[i] = Math.random() * 2 - 1;
           }
-          if (ctx.state === 'suspended') ctx.resume();
+          if (ctx.state === 'suspended') await ctx.resume();
         }
 
         function kick() {
@@ -264,8 +266,19 @@
           noise.stop(now + 0.055);
         }
 
+        function ensureUnlockedState() {
+          ensure();
+          return ctx ? ctx.state : 'missing';
+        }
+
+        const unlockOnce = () => { ensure().catch(console.error); };
+        window.addEventListener('pointerdown', unlockOnce, { once: true });
+        window.addEventListener('touchstart', unlockOnce, { once: true, passive: true });
+        window.addEventListener('keydown', unlockOnce, { once: true });
+
         return {
           ensure,
+          ensureUnlockedState,
           kick,
           snare,
           hat,
