@@ -3,20 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>BPM Generator — Python Mobile Web App</title>
+  <title>BPM Generator — extended</title>
   <link rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
   <script type="module" src="https://pyscript.net/releases/2026.3.1/core.js"></script>
   <style>
     :root {
       --bg: #0b1019;
-      --panel: rgba(16, 23, 38, 0.95);
-      --panel-2: #141d2f;
+      --panel: rgba(16,23,38,.96);
+      --panel2: #141d2f;
       --line: #243049;
       --text: #eef3ff;
       --muted: #97a3bf;
       --accent: #7cf0b9;
-      --accent-2: #7ab7ff;
-      --active: #ffce5c;
+      --accent2: #7ab7ff;
+      --accent3: #ffce5c;
+      --accent4: #ffa0d8;
+      --accent5: #94f0ff;
+      --accent6: #c6a6ff;
     }
     * { box-sizing: border-box; }
     body {
@@ -26,25 +29,14 @@
       background: radial-gradient(circle at top, #18223a 0%, var(--bg) 58%);
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .wrap {
-      width: min(100%, 980px);
-      margin: 0 auto;
-      padding: 18px 14px 28px;
-    }
-    h1 {
-      margin: 6px 0 8px;
-      font-size: clamp(1.7rem, 5vw, 2.4rem);
-    }
-    p {
-      margin: 0 0 14px;
-      color: var(--muted);
-      line-height: 1.45;
-    }
+    .wrap { width: min(100%, 1040px); margin: 0 auto; padding: 18px 14px 28px; }
+    h1 { margin: 6px 0 8px; font-size: clamp(1.7rem, 5vw, 2.4rem); }
+    p { margin: 0 0 14px; color: var(--muted); line-height: 1.45; }
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 22px;
-      box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+      box-shadow: 0 18px 40px rgba(0,0,0,.28);
       padding: 16px;
     }
     .top {
@@ -54,17 +46,14 @@
       margin-bottom: 14px;
     }
     .box {
-      background: var(--panel-2);
+      background: var(--panel2);
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 12px;
     }
-    .box h2 {
-      margin: 0 0 10px;
-      font-size: 1rem;
-    }
+    .box h2 { margin: 0 0 10px; font-size: 1rem; }
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    label { font-weight: 600; }
+    label { font-weight: 700; }
     input[type="range"] { width: 100%; }
     .pill {
       display: inline-flex;
@@ -88,7 +77,7 @@
     }
     button.primary { background: var(--accent); color: #072119; border-color: transparent; }
     button.secondary { background: transparent; }
-    .transport { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .transport { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
     .grid-shell {
       overflow-x: auto;
       margin-top: 6px;
@@ -99,21 +88,13 @@
     }
     .seq-grid {
       display: grid;
-      grid-template-columns: 92px repeat(16, minmax(34px, 1fr));
+      grid-template-columns: 110px repeat(16, minmax(34px, 1fr));
       gap: 8px;
-      min-width: 760px;
+      min-width: 820px;
       align-items: center;
     }
-    .track-label {
-      font-weight: 700;
-      color: var(--muted);
-      padding-left: 4px;
-    }
-    .step-head {
-      color: var(--muted);
-      font-size: 0.8rem;
-      text-align: center;
-    }
+    .track-label { font-weight: 700; color: var(--muted); padding-left: 4px; }
+    .step-head { color: var(--muted); font-size: .8rem; text-align: center; }
     .pad {
       aspect-ratio: 1 / 1;
       min-height: 34px;
@@ -121,20 +102,23 @@
       border-radius: 12px;
       background: #182235;
       border: 1px solid #283555;
-      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease;
+      transition: transform .08s ease, box-shadow .08s ease, background .12s ease;
     }
-    .pad.track-kick.active { background: #7cf0b9; border-color: transparent; color: #071e17; }
-    .pad.track-snare.active { background: #7ab7ff; border-color: transparent; color: #091625; }
-    .pad.track-hat.active { background: #ffce5c; border-color: transparent; color: #241700; }
-    .pad.current { box-shadow: 0 0 0 3px rgba(255,255,255,0.22) inset; transform: translateY(-1px); }
+    .pad.current { box-shadow: 0 0 0 3px rgba(255,255,255,.22) inset; transform: translateY(-1px); }
+    .pad.track-kick.active { background: var(--accent); border-color: transparent; color: #071e17; }
+    .pad.track-snare.active { background: var(--accent2); border-color: transparent; color: #091625; }
+    .pad.track-hat.active { background: var(--accent3); border-color: transparent; color: #241700; }
+    .pad.track-clap.active { background: var(--accent4); border-color: transparent; color: #27081d; }
+    .pad.track-openhat.active { background: var(--accent5); border-color: transparent; color: #082028; }
+    .pad.track-bass.active { background: var(--accent6); border-color: transparent; color: #180928; }
     #status { min-height: 1.5em; margin-top: 12px; color: var(--muted); }
-    .hint { margin-top: 8px; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+    .hint { margin-top: 8px; color: var(--muted); font-size: .92rem; line-height: 1.45; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>BPM Generator</h1>
-    <p>Python controls the sequencer. Tap pads to build a beat, then hit Start. Made for phones and quick demo use.</p>
+    <p>Now extended to six tracks: kick, snare, hat, clap, open hat, and bass click. Tap pads to build a beat, then hit Start.</p>
 
     <div class="card">
       <div class="top">
@@ -198,7 +182,6 @@
       window.audioHelper = (() => {
         let ctx = null;
         let noiseBuffer = null;
-
         async function ensure() {
           if (!ctx) {
             ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -208,85 +191,100 @@
           }
           if (ctx.state === 'suspended') await ctx.resume();
         }
-
         function kick() {
-          ensure();
-          const now = ctx.currentTime;
+          const t = ctx.currentTime;
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(145, now);
-          osc.frequency.exponentialRampToValueAtTime(42, now + 0.12);
-          gain.gain.setValueAtTime(1.0, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          osc.frequency.setValueAtTime(145, t);
+          osc.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+          gain.gain.setValueAtTime(1.0, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
           osc.connect(gain).connect(ctx.destination);
-          osc.start(now);
-          osc.stop(now + 0.18);
+          osc.start(t); osc.stop(t + 0.18);
         }
-
         function snare() {
-          ensure();
           const now = ctx.currentTime;
           const noise = ctx.createBufferSource();
           noise.buffer = noiseBuffer;
-          const noiseFilter = ctx.createBiquadFilter();
-          noiseFilter.type = 'highpass';
-          noiseFilter.frequency.value = 1500;
+          const hp = ctx.createBiquadFilter();
+          hp.type = 'highpass'; hp.frequency.value = 1500;
           const noiseGain = ctx.createGain();
           noiseGain.gain.setValueAtTime(0.7, now);
           noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.11);
-          noise.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
-          noise.start(now);
-          noise.stop(now + 0.12);
-
+          noise.connect(hp).connect(noiseGain).connect(ctx.destination);
+          noise.start(now); noise.stop(now + 0.12);
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(240, now);
-          gain.gain.setValueAtTime(0.5, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+          osc.type = 'triangle'; osc.frequency.setValueAtTime(220, now);
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
           osc.connect(gain).connect(ctx.destination);
-          osc.start(now);
-          osc.stop(now + 0.11);
+          osc.start(now); osc.stop(now + 0.09);
         }
-
         function hat() {
-          ensure();
           const now = ctx.currentTime;
           const noise = ctx.createBufferSource();
           noise.buffer = noiseBuffer;
           const filter = ctx.createBiquadFilter();
-          filter.type = 'highpass';
-          filter.frequency.value = 6500;
+          filter.type = 'highpass'; filter.frequency.value = 6500;
           const gain = ctx.createGain();
-          gain.gain.setValueAtTime(0.26, now);
+          gain.gain.setValueAtTime(0.22, now);
           gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
           noise.connect(filter).connect(gain).connect(ctx.destination);
-          noise.start(now);
-          noise.stop(now + 0.055);
+          noise.start(now); noise.stop(now + 0.055);
         }
-
+        function clap() {
+          const now = ctx.currentTime;
+          for (const offset of [0, 0.012, 0.024]) {
+            const noise = ctx.createBufferSource();
+            noise.buffer = noiseBuffer;
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'bandpass'; hp.frequency.value = 1800;
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.28, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.06);
+            noise.connect(hp).connect(gain).connect(ctx.destination);
+            noise.start(now + offset); noise.stop(now + offset + 0.065);
+          }
+        }
+        function openhat() {
+          const now = ctx.currentTime;
+          const noise = ctx.createBufferSource();
+          noise.buffer = noiseBuffer;
+          const hp = ctx.createBiquadFilter();
+          hp.type = 'highpass'; hp.frequency.value = 6000;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.26, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+          noise.connect(hp).connect(gain).connect(ctx.destination);
+          noise.start(now); noise.stop(now + 0.19);
+        }
+        function bass() {
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(60, now);
+          osc.frequency.exponentialRampToValueAtTime(38, now + 0.12);
+          gain.gain.setValueAtTime(0.22, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.2);
+        }
         function ensureUnlockedState() {
           ensure();
           return ctx ? ctx.state : 'missing';
         }
-
         const unlockOnce = () => { ensure().catch(console.error); };
         window.addEventListener('pointerdown', unlockOnce, { once: true });
         window.addEventListener('touchstart', unlockOnce, { once: true, passive: true });
         window.addEventListener('keydown', unlockOnce, { once: true });
-
-        return {
-          ensure,
-          ensureUnlockedState,
-          kick,
-          snare,
-          hat,
-        };
+        return { ensure, ensureUnlockedState, kick, snare, hat, clap, openhat, bass };
       })();
     </script>
 
-    <script type="py" src="./main.py" config="./pyscript.json"></script>
+    <script type="py" src="./main.py"></script>
   </div>
 </body>
 </html>
