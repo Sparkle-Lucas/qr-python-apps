@@ -3,211 +3,217 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Meme Generator — Python Mobile Web App</title>
+  <title>Meme Generator — extended</title>
   <link rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
   <script type="module" src="https://pyscript.net/releases/2026.3.1/core.js"></script>
   <style>
     :root {
-      --bg: #11131c;
-      --panel: rgba(20, 24, 35, 0.95);
-      --panel-2: #181d2b;
-      --line: #2a3143;
-      --text: #edf2ff;
-      --muted: #9ba5bf;
-      --accent: #ffd66b;
+      --bg: #0b1019;
+      --panel: rgba(16,23,38,.96);
+      --panel2: #141d2f;
+      --line: #243049;
+      --text: #eef3ff;
+      --muted: #97a3bf;
+      --accent: #7cf0b9;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       color: var(--text);
-      background: radial-gradient(circle at top, #23293c 0%, var(--bg) 60%);
+      background: radial-gradient(circle at top, #18223a 0%, var(--bg) 58%);
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .wrap {
-      width: min(100%, 980px);
-      margin: 0 auto;
-      padding: 18px 14px 30px;
-    }
+    .wrap { width: min(100%, 1120px); margin: 0 auto; padding: 18px 14px 28px; }
     h1 { margin: 6px 0 8px; font-size: clamp(1.7rem, 5vw, 2.4rem); }
     p { margin: 0 0 14px; color: var(--muted); line-height: 1.45; }
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 22px;
-      box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+      box-shadow: 0 18px 40px rgba(0,0,0,.28);
       padding: 16px;
     }
     .layout {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
       gap: 14px;
     }
-    @media (min-width: 900px) {
-      .layout { grid-template-columns: 360px 1fr; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
     }
     .panel {
-      background: var(--panel-2);
+      background: var(--panel2);
       border: 1px solid var(--line);
       border-radius: 18px;
-      padding: 14px;
+      padding: 12px;
     }
-    .panel h2 {
-      margin: 0 0 10px;
-      font-size: 1rem;
-    }
-    label {
-      display: block;
-      font-weight: 700;
-      margin: 0 0 6px;
-    }
-    input[type="text"], select, input[type="file"] {
+    .panel h2 { margin: 0 0 10px; font-size: 1rem; }
+    .stack { display: grid; gap: 12px; }
+    label { display: block; font-weight: 700; margin-bottom: 6px; }
+    input[type="text"], input[type="file"], select, button {
       width: 100%;
+      min-height: 46px;
       border-radius: 14px;
       border: 1px solid var(--line);
-      background: #101624;
+      background: #10192a;
       color: var(--text);
-      min-height: 48px;
-      padding: 10px 12px;
+      padding: 0 14px;
+      font-weight: 600;
     }
     input[type="range"] { width: 100%; }
-    .field { margin-bottom: 12px; }
-    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    button {
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: #11192a;
-      color: var(--text);
-      min-height: 48px;
-      padding: 0 14px;
-      font-weight: 700;
-    }
-    button.primary { background: var(--accent); color: #261b00; border-color: transparent; }
-    .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .canvas-shell {
-      background: #0d111b;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 10px;
-    }
+    button.primary { background: var(--accent); color: #072119; border-color: transparent; font-weight: 800; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .small { color: var(--muted); font-size: .92rem; line-height: 1.45; }
+    .preview { display: grid; gap: 12px; }
     canvas {
       width: 100%;
       height: auto;
+      border-radius: 18px;
+      border: 1px solid #314164;
+      background: #0d1425;
       display: block;
-      border-radius: 14px;
-      background: #fff;
+      touch-action: none;
     }
-    .small { color: var(--muted); font-size: 0.92rem; line-height: 1.4; }
-    #status { min-height: 1.5em; margin-top: 10px; color: var(--muted); }
+    #status { min-height: 1.4em; color: var(--muted); }
+    .value-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 56px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #0d1425;
+      border: 1px solid var(--line);
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Meme Generator</h1>
-    <p>Choose a starter template or upload your own image. Python handles the text layout and the final draw onto the canvas.</p>
+    <p>Upload your own image or start from a built-in background. You can drag the top and bottom text directly on the canvas.</p>
 
-    <div class="card layout">
-      <div style="display:grid; gap:14px;">
-        <div class="panel">
-          <h2>Image Source</h2>
-          <div class="field">
-            <label for="template">Starter template</label>
+    <div class="card">
+      <div class="layout">
+        <div class="stack">
+          <div class="panel">
+            <h2>Image source</h2>
+            <label for="template">Template</label>
             <select id="template">
-              <option value="./assets/classic_blank.png">Classic Blank</option>
-              <option value="./assets/split_choice.png">Split Choice</option>
-              <option value="./assets/chaos_grid.png">Chaos Grid</option>
+              <option value="blank-light">Classic light</option>
+              <option value="blank-dark">Dark board</option>
+              <option value="gradient">Soft gradient</option>
               <option value="upload">Uploaded image</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="uploader">Upload your own image</label>
+            <div style="height:10px"></div>
+            <label for="uploader">Upload image</label>
             <input id="uploader" type="file" accept="image/*" />
+            <div class="small" style="margin-top:8px;">After upload, the page will auto-switch to Uploaded image and redraw the preview.</div>
           </div>
-          <div class="small">If you pick “Uploaded image”, choose a photo first, then tap Generate.</div>
-        </div>
 
-        <div class="panel">
-          <h2>Text</h2>
-          <div class="field">
+          <div class="panel">
+            <h2>Text</h2>
             <label for="top-text">Top text</label>
-            <input id="top-text" type="text" maxlength="90" placeholder="WHEN THE CODE FINALLY WORKS" />
-          </div>
-          <div class="field">
+            <input id="top-text" type="text" maxlength="120" />
+            <div style="height:10px"></div>
             <label for="bottom-text">Bottom text</label>
-            <input id="bottom-text" type="text" maxlength="90" placeholder="AND YOU HAVE TO ACT LIKE IT WAS EASY" />
+            <input id="bottom-text" type="text" maxlength="120" />
           </div>
-          <div class="field">
-            <label for="font-scale">Text size</label>
-            <input id="font-scale" type="range" min="60" max="140" value="100" />
+
+          <div class="panel">
+            <h2>Style controls</h2>
+            <div class="grid2">
+              <div>
+                <label for="style-mode">Text style</label>
+                <select id="style-mode">
+                  <option value="white-black">White / black stroke</option>
+                  <option value="black-white">Black / white stroke</option>
+                  <option value="color-cyan">Cyan / dark stroke</option>
+                  <option value="color-pink">Pink / dark stroke</option>
+                  <option value="no-stroke">Plain fill</option>
+                </select>
+              </div>
+              <div>
+                <label for="align-mode">Alignment</label>
+                <select id="align-mode">
+                  <option value="left">Left</option>
+                  <option value="center" selected>Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="height:12px"></div>
+            <div>
+              <label for="font-size">Font size</label>
+              <div style="display:flex; gap:10px; align-items:center;">
+                <input id="font-size" type="range" min="45" max="180" value="100" />
+                <div class="value-chip" id="font-size-value">100%</div>
+              </div>
+            </div>
+
+            <div style="height:12px"></div>
+            <div>
+              <label for="line-spacing">Line spacing</label>
+              <div style="display:flex; gap:10px; align-items:center;">
+                <input id="line-spacing" type="range" min="80" max="160" value="105" />
+                <div class="value-chip" id="line-spacing-value">1.05×</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Actions</h2>
+            <div class="grid3">
+              <button class="primary" id="generate">Generate</button>
+              <button id="download">Download PNG</button>
+              <button id="reset-all">Reset all</button>
+            </div>
           </div>
         </div>
 
-        <div class="panel">
-          <h2>Actions</h2>
-          <div class="actions">
-            <button class="primary" id="generate">Generate</button>
-            <button id="download">Download PNG</button>
-            <button id="reset-text">Reset text</button>
-            <button id="load-default">Load defaults</button>
-          </div>
-          <div id="status">Ready.</div>
+        <div class="preview">
+          <canvas id="meme-canvas" width="1200" height="1200"></canvas>
+          <div id="status">Ready. Upload a photo or use a built-in background, then Generate.</div>
+          <div class="small">Drag the text blocks directly on the canvas to reposition them. Dragging does not change the font size or alignment; those still come from the controls.</div>
         </div>
       </div>
-
-      <div class="canvas-shell">
-        <canvas id="meme-canvas" width="1200" height="1200"></canvas>
-      </div>
-
-      <img id="source-image" alt="hidden source" style="display:none;" />
     </div>
 
-<script>
-  window.uploadedMemeData = null;
+    <img id="source-image" alt="hidden source" style="display:none" />
 
-  const uploader = document.getElementById('uploader');
-  const templateSelect = document.getElementById('template');
-  const statusEl = document.getElementById('status');
+    <script>
+      window.uploadedMemeData = null;
+      const uploader = document.getElementById('uploader');
+      const templateSelect = document.getElementById('template');
+      const statusEl = document.getElementById('status');
+      uploader.addEventListener('change', () => {
+        const file = uploader.files && uploader.files[0];
+        if (!file) return;
+        statusEl.textContent = 'Reading uploaded image...';
+        const reader = new FileReader();
+        reader.onload = () => {
+          window.uploadedMemeData = reader.result;
+          templateSelect.value = 'upload';
+          statusEl.textContent = 'Uploaded image ready. Generating preview...';
+          const btn = document.getElementById('generate');
+          if (btn) btn.click();
+        };
+        reader.onerror = () => { statusEl.textContent = 'Failed to read the uploaded image.'; };
+        reader.readAsDataURL(file);
+      });
+      window.downloadCanvasAsPng = (canvasId, filename) => {
+        const canvas = document.getElementById(canvasId);
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = filename;
+        link.click();
+      };
+    </script>
 
-  uploader.addEventListener('change', () => {
-    const file = uploader.files && uploader.files[0];
-    if (!file) return;
-
-    if (statusEl) {
-      statusEl.textContent = 'Reading uploaded image...';
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      window.uploadedMemeData = reader.result;
-
-      
-      templateSelect.value = 'upload';
-
-      if (statusEl) {
-        statusEl.textContent = 'Uploaded image ready. Tap Generate.';
-      }
-    };
-
-    reader.onerror = () => {
-      if (statusEl) {
-        statusEl.textContent = 'Failed to read the uploaded image.';
-      }
-    };
-
-    reader.readAsDataURL(file);
-  });
-
-  window.downloadCanvasAsPng = (canvasId, filename) => {
-    const canvas = document.getElementById(canvasId);
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
-    link.download = filename;
-    link.click();
-  };
-</script>
-
-    <script type="py" src="./main.py" config="./pyscript.json"></script>
+    <script type="py" src="./main.py"></script>
   </div>
 </body>
 </html>
