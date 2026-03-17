@@ -1,380 +1,473 @@
-import asyncio
-from js import document, window
+from js import document, window, Image, console
 from pyscript.ffi import create_proxy
 
 canvas = document.getElementById("meme-canvas")
 ctx = canvas.getContext("2d")
-img_el = document.getElementById("source-image")
+
+template_select = document.getElementById("template")
+uploader = document.getElementById("uploader")
+top_input = document.getElementById("top-text")
+bottom_input = document.getElementById("bottom-text")
+style_select = document.getElementById("style-select")
+align_select = document.getElementById("align-select")
+font_size_input = document.getElementById("font-size")
+line_spacing_input = document.getElementById("line-spacing")
 status_el = document.getElementById("status")
-template_el = document.getElementById("template")
-top_el = document.getElementById("top-text")
-bottom_el = document.getElementById("bottom-text")
-style_el = document.getElementById("style-mode")
-align_el = document.getElementById("align-mode")
-font_size_el = document.getElementById("font-size")
-font_size_value_el = document.getElementById("font-size-value")
-line_spacing_el = document.getElementById("line-spacing")
-line_spacing_value_el = document.getElementById("line-spacing-value")
 
-DEFAULT_TOP = "WHEN THE CODE FINALLY WORKS"
-DEFAULT_BOTTOM = "AND YOU HAVE TO ACT LIKE IT WAS EASY"
+generate_btn = document.getElementById("generate-btn")
+reset_btn = document.getElementById("reset-btn")
+download_btn = document.getElementById("download-btn")
+reset_pos_btn = document.getElementById("reset-pos-btn")
 
-proxies = []
-drag_target = None
-is_pointer_down = False
-current_background = "blank-light"
-top_y_ratio = 0.08
-bottom_y_ratio = 0.92
-last_top_bounds = None
-last_bottom_bounds = None
+_event_proxies = []
+_image_proxies = []
 
-STYLE_MAP = {
-    "white-black": {"fill": "white", "stroke": "black", "line_width_factor": 0.16},
-    "black-white": {"fill": "black", "stroke": "white", "line_width_factor": 0.16},
-    "color-cyan": {"fill": "#9EF0FF", "stroke": "#0D2233", "line_width_factor": 0.16},
-    "color-pink": {"fill": "#FFC3E7", "stroke": "#2A1024", "line_width_factor": 0.16},
-    "no-stroke": {"fill": "white", "stroke": None, "line_width_factor": 0.0},
+MAX_IMAGE_DIM = 1200
+PADDING = 22
+
+current_bg = {
+    "mode": "template",   # "template" or "upload"
+    "template": "classic-light",
+    "image": None,
+}
+
+text_state = {
+    "top": {
+        "x_frac": 0.50,
+        "y_frac": 0.07,
+        "box": None,
+        "anchor_px": (0, 0),
+    },
+    "bottom": {
+        "x_frac": 0.50,
+        "y_frac": 0.83,
+        "box": None,
+        "anchor_px": (0, 0),
+    },
+}
+
+drag_state = {
+    "active": False,
+    "target": None,
+    "offset_x": 0,
+    "offset_y": 0,
 }
 
 
-def bind(element, event_name, fn):
-    proxy = create_proxy(fn)
-    proxies.append(proxy)
+def bind(element, event_name, func):
+    proxy = create_proxy(func)
+    _event_proxies.append(proxy)
     element.addEventListener(event_name, proxy)
 
 
-
-def set_status(text: str):
-    status_el.textContent = text
-
-
-
-def update_value_labels(event=None):
-    font_size_value_el.textContent = f"{font_size_el.value}%"
-    line_spacing_value_el.textContent = f"{float(line_spacing_el.value) / 100:.2f}×"
-
+def set_status(msg: str):
+    status_el.textContent = msg
 
 
 def clamp(value, low, high):
     return max(low, min(high, value))
 
 
-
-def draw_template_background(choice: str):
-    canvas.width = 1200
-    canvas.height = 1200
-    if choice == "blank-dark":
-        ctx.fillStyle = "#121827"
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.fillStyle = "#20283C"
-        ctx.fillRect(70, 70, 1060, 1060)
-        ctx.fillStyle = "#5A678A"
-        for i in range(0, canvas.width, 60):
-            ctx.fillRect(i, 0, 2, canvas.height)
-    elif choice == "gradient":
-        grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-        grad.addColorStop(0, "#2A395A")
-        grad.addColorStop(0.5, "#5D7FB8")
-        grad.addColorStop(1, "#11182A")
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.fillStyle = "rgba(255,255,255,.08)"
-        for r in range(8):
-            ctx.beginPath()
-            ctx.arc(220 + r * 90, 180 + r * 50, 70 + r * 14, 0, 6.28318)
-            ctx.fill()
-    else:
-        ctx.fillStyle = "#f4f5f7"
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.fillStyle = "#d7dae0"
-        ctx.fillRect(70, 70, 1060, 1060)
+def get_font_size():
+    return int(font_size_input.value)
 
 
-
-def get_selected_source() -> str:
-    choice = str(template_el.value)
-    if choice == "upload":
-        if window.uploadedMemeData:
-            return str(window.uploadedMemeData)
-        return ""
-    return choice
+def get_line_spacing():
+    return float(line_spacing_input.value)
 
 
-async def wait_for_image() -> bool:
-    for _ in range(140):
-        if img_el.complete and img_el.naturalWidth > 0:
-            return True
-        await asyncio.sleep(0.05)
-    return False
+def get_align():
+    return align_select.value
 
 
-
-def fit_canvas_to_image():
-    width = int(img_el.naturalWidth)
-    height = int(img_el.naturalHeight)
-    max_side = 1400
-    scale = min(1, max_side / max(width, height))
-    canvas.width = round(width * scale)
-    canvas.height = round(height * scale)
+def get_style():
+    return style_select.value
 
 
-
-def get_text_x(max_width: float):
-    align = str(align_el.value)
-    pad = canvas.width * 0.06
+def reset_text_positions(event=None):
+    align = get_align()
     if align == "left":
-        return pad
-    if align == "right":
-        return canvas.width - pad
-    return canvas.width / 2
+        x_frac = 0.07
+    elif align == "right":
+        x_frac = 0.93
+    else:
+        x_frac = 0.50
 
+    text_state["top"]["x_frac"] = x_frac
+    text_state["top"]["y_frac"] = 0.07
+    text_state["bottom"]["x_frac"] = x_frac
+    text_state["bottom"]["y_frac"] = 0.83
+    render_scene()
+    set_status("Text positions reset.")
+
+
+def apply_style():
+    style = get_style()
+    if style == "white-black":
+        return {
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "line_width_factor": 0.16,
+        }
+    if style == "black-white":
+        return {
+            "fill": "#000000",
+            "stroke": "#ffffff",
+            "line_width_factor": 0.16,
+        }
+    if style == "color-black":
+        return {
+            "fill": "#7ab7ff",
+            "stroke": "#091625",
+            "line_width_factor": 0.15,
+        }
+    return {
+        "fill": "#ffffff",
+        "stroke": None,
+        "line_width_factor": 0.0,
+    }
+
+
+def draw_template_background(name: str):
+    canvas.width = 1000
+    canvas.height = 1000
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    if name == "classic-dark":
+        ctx.fillStyle = "#111111"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+        ctx.fillStyle = "#1e1e1e"
+        ctx.fillRect(60, 60, 880, 880)
+
+    elif name == "blue-panel":
+        ctx.fillStyle = "#1250b8"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+        ctx.strokeStyle = "rgba(255,255,255,0.22)"
+        ctx.lineWidth = 4
+        ctx.strokeRect(70, 70, 860, 860)
+
+        ctx.fillStyle = "rgba(255,255,255,0.06)"
+        ctx.fillRect(90, 90, 820, 820)
+
+    else:
+        # classic-light
+        ctx.fillStyle = "#f5f5f5"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(55, 55, 890, 890)
+
+        ctx.strokeStyle = "#d9d9d9"
+        ctx.lineWidth = 4
+        ctx.strokeRect(55, 55, 890, 890)
+
+
+def set_canvas_from_uploaded_image(img):
+    natural_w = int(img.naturalWidth or img.width or 1000)
+    natural_h = int(img.naturalHeight or img.height or 1000)
+
+    scale = min(1.0, MAX_IMAGE_DIM / max(natural_w, natural_h))
+    canvas.width = max(1, int(natural_w * scale))
+    canvas.height = max(1, int(natural_h * scale))
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
 
 def wrap_text(text: str, max_width: float, font_size: int):
-    text = text.strip()
-    if not text:
+    if not text.strip():
         return []
-    ctx.font = f"900 {font_size}px Impact, Arial Black, sans-serif"
-    if " " in text:
-        words = text.split()
-        lines = []
-        current = words[0]
-        for word in words[1:]:
-            test = current + " " + word
-            if ctx.measureText(test).width <= max_width:
-                current = test
-            else:
-                lines.append(current)
-                current = word
-        lines.append(current)
-        return lines
+
+    ctx.font = f"900 {font_size}px Impact, Haettenschweiler, Arial Black, sans-serif"
+
+    # If there are spaces, wrap by words; otherwise wrap by characters.
+    if " " in text.strip():
+        units = text.strip().split()
+        joiner = " "
+    else:
+        units = list(text.strip())
+        joiner = ""
 
     lines = []
-    current = ""
-    for char in text:
-        test = current + char
-        if ctx.measureText(test).width <= max_width:
-            current = test
+    current = units[0]
+
+    for unit in units[1:]:
+        candidate = current + joiner + unit
+        if ctx.measureText(candidate).width <= max_width:
+            current = candidate
         else:
-            if current:
-                lines.append(current)
-            current = char
-    if current:
-        lines.append(current)
+            lines.append(current)
+            current = unit
+
+    lines.append(current)
     return lines
 
 
-
-def auto_fit_lines(text: str, max_width: float, base_size: int):
-    size = base_size
-    while size >= 24:
-        lines = wrap_text(text, max_width, size)
-        if len(lines) <= 4:
-            return size, lines
-        size -= 4
-    return 24, wrap_text(text, max_width, 24)
-
-
-
-def draw_text_block(text: str, y_ratio: float, key: str):
-    global last_top_bounds, last_bottom_bounds
-    text = text.strip()
-    if not text:
-        bounds = {"x": 0, "y": 0, "w": 0, "h": 0}
-        if key == "top":
-            last_top_bounds = bounds
-        else:
-            last_bottom_bounds = bounds
+def draw_text_block(name: str, text: str):
+    if not text.strip():
+        text_state[name]["box"] = None
         return
 
-    padding = canvas.width * 0.06
-    max_width = canvas.width - padding * 2
-    scale = float(font_size_el.value) / 100
-    base_size = int(canvas.width * 0.085 * scale)
-    font_size, lines = auto_fit_lines(text, max_width, max(28, base_size))
-    line_height = int(font_size * (float(line_spacing_el.value) / 100))
-    total_height = line_height * len(lines)
-    x = get_text_x(max_width)
-    y = canvas.height * y_ratio
-    align = str(align_el.value)
+    align = get_align()
+    font_size = get_font_size()
+    line_spacing = get_line_spacing()
+    style = apply_style()
 
-    style = STYLE_MAP[str(style_el.value)]
-    ctx.font = f"900 {font_size}px Impact, Arial Black, sans-serif"
+    ctx.font = f"900 {font_size}px Impact, Haettenschweiler, Arial Black, sans-serif"
     ctx.textAlign = align
     ctx.textBaseline = "top"
-    ctx.lineJoin = "round"
-    ctx.lineWidth = max(0, int(font_size * style["line_width_factor"]))
+
+    max_width = canvas.width - (PADDING * 2)
+
+    x_anchor = text_state[name]["x_frac"] * canvas.width
+    y_anchor = text_state[name]["y_frac"] * canvas.height
+
+    lines = wrap_text(text, max_width, font_size)
+    if not lines:
+        text_state[name]["box"] = None
+        return
+
+    line_height = font_size * line_spacing
+    total_height = len(lines) * line_height
+
+    widths = [ctx.measureText(line).width for line in lines]
+    max_line_width = max(widths) if widths else 0
+
+    # Clamp anchor positions based on alignment and block size
+    if align == "center":
+        min_x = PADDING + (max_line_width / 2)
+        max_x = canvas.width - PADDING - (max_line_width / 2)
+    elif align == "left":
+        min_x = PADDING
+        max_x = canvas.width - PADDING - max_line_width
+    else:  # right
+        min_x = PADDING + max_line_width
+        max_x = canvas.width - PADDING
+
+    min_y = PADDING
+    max_y = canvas.height - PADDING - total_height
+
+    x_anchor = clamp(x_anchor, min_x, max_x)
+    y_anchor = clamp(y_anchor, min_y, max_y)
+
+    text_state[name]["x_frac"] = x_anchor / canvas.width
+    text_state[name]["y_frac"] = y_anchor / canvas.height
+    text_state[name]["anchor_px"] = (x_anchor, y_anchor)
+
+    # Draw text
     ctx.fillStyle = style["fill"]
     if style["stroke"]:
         ctx.strokeStyle = style["stroke"]
-
-    max_line_width = 0
-    for line in lines:
-        max_line_width = max(max_line_width, ctx.measureText(line).width)
-
-    if align == "left":
-        left_x = x
-    elif align == "right":
-        left_x = x - max_line_width
-    else:
-        left_x = x - max_line_width / 2
-
-    top_y = y if key == "top" else y - total_height
-    top_y = clamp(top_y, 10, canvas.height - total_height - 10)
+        ctx.lineJoin = "round"
+        ctx.lineWidth = max(2, int(font_size * style["line_width_factor"]))
 
     for i, line in enumerate(lines):
-        ly = top_y + i * line_height
-        if style["stroke"] and ctx.lineWidth > 0:
-            ctx.strokeText(line, x, ly, max_width)
-        ctx.fillText(line, x, ly, max_width)
+        y = y_anchor + i * line_height
+        if style["stroke"]:
+            ctx.strokeText(line, x_anchor, y, max_width)
+        ctx.fillText(line, x_anchor, y, max_width)
 
-    bounds = {"x": left_x - 18, "y": top_y - 18, "w": max_line_width + 36, "h": total_height + 36}
-
-    ctx.save()
-    ctx.setLineDash([10, 8])
-    ctx.strokeStyle = "rgba(255,255,255,.35)"
-    ctx.lineWidth = 2
-    ctx.strokeRect(bounds["x"], bounds["y"], bounds["w"], bounds["h"])
-    ctx.restore()
-
-    if key == "top":
-        last_top_bounds = bounds
+    # Bounding box for dragging / hit testing
+    if align == "center":
+        left = x_anchor - max_line_width / 2
+    elif align == "left":
+        left = x_anchor
     else:
-        last_bottom_bounds = bounds
+        left = x_anchor - max_line_width
+
+    text_state[name]["box"] = {
+        "left": left - 16,
+        "top": y_anchor - 10,
+        "right": left + max_line_width + 16,
+        "bottom": y_anchor + total_height + 10,
+    }
 
 
-async def redraw(event=None):
-    global current_background
-    choice = get_selected_source()
-    if not choice:
-        set_status("No uploaded image found. Upload a photo first, or choose a built-in background.")
+def render_scene():
+    if current_bg["mode"] == "upload" and current_bg["image"] is not None:
+        set_canvas_from_uploaded_image(current_bg["image"])
+    else:
+        draw_template_background(current_bg["template"])
+
+    draw_text_block("top", top_input.value)
+    draw_text_block("bottom", bottom_input.value)
+
+
+def use_template(name: str):
+    current_bg["mode"] = "template"
+    current_bg["template"] = name
+    current_bg["image"] = None
+    render_scene()
+    set_status(f"Template loaded: {name}.")
+
+
+def load_uploaded_image():
+    if not window.uploadedImageReady or not window.uploadedMemeData:
+        set_status("No uploaded image is ready yet. Please upload a JPG or PNG image first.")
         return
 
-    if choice == "upload":
-        src = str(window.uploadedMemeData) if window.uploadedMemeData else ""
-        if not src:
-            set_status("No uploaded image found. Upload a photo first.")
-            return
-        set_status("Loading image...")
-        img_el.src = src
-        ok = await wait_for_image()
-        if not ok:
-            set_status("Image failed to load. Try another file.")
-            return
-        fit_canvas_to_image()
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(img_el, 0, 0, canvas.width, canvas.height)
-        current_background = "upload"
+    img = Image.new()
+
+    def onload(evt):
+        current_bg["mode"] = "upload"
+        current_bg["image"] = img
+        current_bg["template"] = None
+        render_scene()
+        set_status("Uploaded image loaded. Meme generated.")
+
+    def onerror(evt):
+        set_status("Failed to load the uploaded image. Try a JPG or PNG file.")
+
+    onload_proxy = create_proxy(onload)
+    onerror_proxy = create_proxy(onerror)
+    _image_proxies.append(onload_proxy)
+    _image_proxies.append(onerror_proxy)
+
+    img.onload = onload_proxy
+    img.onerror = onerror_proxy
+    img.src = window.uploadedMemeData
+
+
+def generate_preview(event=None):
+    selected = template_select.value
+
+    if selected == "upload":
+        load_uploaded_image()
     else:
-        current_background = choice
-        draw_template_background(choice)
-
-    draw_text_block(top_el.value, top_y_ratio, "top")
-    draw_text_block(bottom_el.value, bottom_y_ratio, "bottom")
-    set_status("Generated. Drag the text blocks or download PNG when ready.")
+        use_template(selected)
 
 
-
-def point_in_bounds(x: float, y: float, bounds):
-    if not bounds:
-        return False
-    return bounds["x"] <= x <= bounds["x"] + bounds["w"] and bounds["y"] <= y <= bounds["y"] + bounds["h"]
-
-
-
-def canvas_point(event):
-    rect = canvas.getBoundingClientRect()
-    scale_x = canvas.width / rect.width
-    scale_y = canvas.height / rect.height
-    x = (float(event.clientX) - rect.left) * scale_x
-    y = (float(event.clientY) - rect.top) * scale_y
-    return x, y
-
-
-
-def on_pointer_down(event):
-    global drag_target, is_pointer_down
-    is_pointer_down = True
-    x, y = canvas_point(event)
-    if point_in_bounds(x, y, last_top_bounds):
-        drag_target = "top"
-    elif point_in_bounds(x, y, last_bottom_bounds):
-        drag_target = "bottom"
-    else:
-        drag_target = None
-
-
-
-def on_pointer_move(event):
-    global top_y_ratio, bottom_y_ratio
-    if not is_pointer_down or not drag_target:
+def on_controls_change(event=None):
+    # If alignment changes, reset x positions to sensible defaults
+    if event is not None and event.target.id == "align-select":
+        reset_text_positions()
         return
-    _, y = canvas_point(event)
-    ratio = clamp(y / canvas.height, 0.05, 0.95)
-    if drag_target == "top":
-        top_y_ratio = ratio
+
+    # If we already have an uploaded image active, redraw that immediately.
+    # Otherwise redraw current template.
+    if current_bg["mode"] == "upload" and current_bg["image"] is not None:
+        render_scene()
+        set_status("Preview updated.")
     else:
-        bottom_y_ratio = ratio
-    asyncio.create_task(redraw())
+        generate_preview()
 
 
+def reset_all(event=None):
+    template_select.value = "classic-light"
+    top_input.value = ""
+    bottom_input.value = ""
+    style_select.value = "white-black"
+    align_select.value = "center"
+    font_size_input.value = "52"
+    line_spacing_input.value = "1.15"
 
-def on_pointer_up(event=None):
-    global drag_target, is_pointer_down
-    drag_target = None
-    is_pointer_down = False
+    window.uploadedMemeData = None
+    window.uploadedImageReady = False
+    uploader.value = ""
+
+    current_bg["mode"] = "template"
+    current_bg["template"] = "classic-light"
+    current_bg["image"] = None
+
+    reset_text_positions()
+    render_scene()
+    set_status("Reset to default template.")
 
 
-
-def on_generate(event=None):
-    asyncio.create_task(redraw())
-
-
-
-def on_download(event=None):
+def download_png(event=None):
     window.downloadCanvasAsPng("meme-canvas", "meme.png")
     set_status("Downloading PNG...")
 
 
-
-def on_reset_all(event=None):
-    global top_y_ratio, bottom_y_ratio, current_background
-    template_el.value = "blank-light"
-    top_el.value = DEFAULT_TOP
-    bottom_el.value = DEFAULT_BOTTOM
-    style_el.value = "white-black"
-    align_el.value = "center"
-    font_size_el.value = "100"
-    line_spacing_el.value = "105"
-    top_y_ratio = 0.08
-    bottom_y_ratio = 0.92
-    update_value_labels()
-    current_background = "blank-light"
-    asyncio.create_task(redraw())
+def point_in_box(x, y, box):
+    if not box:
+        return False
+    return box["left"] <= x <= box["right"] and box["top"] <= y <= box["bottom"]
 
 
+def get_canvas_coords(event):
+    rect = canvas.getBoundingClientRect()
+    x = (event.clientX - rect.left) * canvas.width / rect.width
+    y = (event.clientY - rect.top) * canvas.height / rect.height
+    return x, y
 
-def on_live_control(event=None):
-    update_value_labels()
-    asyncio.create_task(redraw())
+
+def on_pointer_down(event):
+    x, y = get_canvas_coords(event)
+
+    top_box = text_state["top"]["box"]
+    bottom_box = text_state["bottom"]["box"]
+
+    # Prefer bottom if overlapping, then top
+    if point_in_box(x, y, bottom_box):
+        target = "bottom"
+    elif point_in_box(x, y, top_box):
+        target = "top"
+    else:
+        return
+
+    anchor_x, anchor_y = text_state[target]["anchor_px"]
+    drag_state["active"] = True
+    drag_state["target"] = target
+    drag_state["offset_x"] = x - anchor_x
+    drag_state["offset_y"] = y - anchor_y
+
+    try:
+        canvas.setPointerCapture(event.pointerId)
+    except Exception:
+        pass
 
 
-bind(document.getElementById("generate"), "click", on_generate)
-bind(document.getElementById("download"), "click", on_download)
-bind(document.getElementById("reset-all"), "click", on_reset_all)
-bind(template_el, "change", on_live_control)
-bind(top_el, "input", on_live_control)
-bind(bottom_el, "input", on_live_control)
-bind(style_el, "change", on_live_control)
-bind(align_el, "change", on_live_control)
-bind(font_size_el, "input", on_live_control)
-bind(line_spacing_el, "input", on_live_control)
+def on_pointer_move(event):
+    if not drag_state["active"] or not drag_state["target"]:
+        return
+
+    x, y = get_canvas_coords(event)
+    target = drag_state["target"]
+
+    new_anchor_x = x - drag_state["offset_x"]
+    new_anchor_y = y - drag_state["offset_y"]
+
+    text_state[target]["x_frac"] = new_anchor_x / canvas.width
+    text_state[target]["y_frac"] = new_anchor_y / canvas.height
+
+    render_scene()
+    set_status(f"Dragging {target} text.")
+
+
+def on_pointer_up(event):
+    drag_state["active"] = False
+    drag_state["target"] = None
+
+
+# Expose a JS-callable preview trigger for the uploader script
+_preview_proxy = create_proxy(generate_preview)
+_event_proxies.append(_preview_proxy)
+window.triggerMemePreview = _preview_proxy
+
+
+# Bind UI events
+bind(generate_btn, "click", generate_preview)
+bind(reset_btn, "click", reset_all)
+bind(download_btn, "click", download_png)
+bind(reset_pos_btn, "click", reset_text_positions)
+
+bind(template_select, "change", on_controls_change)
+bind(top_input, "input", on_controls_change)
+bind(bottom_input, "input", on_controls_change)
+bind(style_select, "change", on_controls_change)
+bind(align_select, "change", on_controls_change)
+bind(font_size_input, "input", on_controls_change)
+bind(line_spacing_input, "input", on_controls_change)
+
 bind(canvas, "pointerdown", on_pointer_down)
 bind(canvas, "pointermove", on_pointer_move)
 bind(canvas, "pointerup", on_pointer_up)
 bind(canvas, "pointerleave", on_pointer_up)
+bind(canvas, "pointercancel", on_pointer_up)
 
-update_value_labels()
-top_el.value = DEFAULT_TOP
-bottom_el.value = DEFAULT_BOTTOM
-asyncio.create_task(redraw())
+# Initial render
+render_scene()
+set_status("Ready. Choose a template or upload a JPG/PNG, then generate.")
